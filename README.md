@@ -6,6 +6,10 @@
 - [TASK B - “How Claude Thinks” via .claude.md](#task-b)
 - [TASK C - Skill Design (skill/ modules)](#task-c)
 - [TASK D - Claude Engine: Coordination & Validation](#task-d)
+- [TASK E - Agent Basics (Conceptual)](#task-e)
+- [TASK F - Build 2 Agents (Practical Design)](#task-f)
+- [TASK G - Multi-Agent Orchestration (Advanced)](#task-g)
+- [Claude Architecture Diagrams](#diagram)
 
 <a id="task-a"></a>
 # TASK A - Architecture Write-Up
@@ -1611,3 +1615,2618 @@ This coordination architecture implements:
 4. **Policy as Code** — Constraints enforced programmatically
 5. **Uncertainty Propagation** — Confidence scores guide decisions
 6. **Bounded Retry** — Prevents infinite loops
+
+<a id="task-e"></a>
+# TASK E - Agent Basics (Conceptual)
+# Agent Basics: Claude-Style AI Workflows
+
+A comprehensive technical guide to understanding and implementing agents in Claude-style agentic AI systems.
+
+---
+
+## Table of Contents
+
+- [Executive Definition](#executive-definition)
+- [What an Agent Is NOT](#what-an-agent-is-not)
+- [What an Agent IS](#what-an-agent-is)
+- [Core Agent Components (7 Required)](#core-agent-components-7-required)
+  - [1. Role & Mission](#1-role--mission)
+  - [2. Scope Boundaries](#2-scope-boundaries)
+  - [3. Tool Permissions](#3-tool-permissions)
+  - [4. Policies/Guardrails](#4-policiesguardrails)
+  - [5. Inputs/Outputs](#5-inputsoutputs)
+  - [6. Memory Strategy](#6-memory-strategy)
+  - [7. Evaluation Rubric](#7-evaluation-rubric)
+- [Agent Architecture Patterns](#agent-architecture-patterns)
+  - [Pattern 1: Single-Agent](#pattern-1-single-agent-architecture)
+  - [Pattern 2: Multi-Agent](#pattern-2-multi-agent-architecture)
+- [Trade-offs Analysis](#trade-offs-single-vs-multi-agent)
+- [Final Mental Model](#final-mental-model-critical)
+
+---
+
+## Executive Definition
+
+In Claude-style agentic systems, an **agent** is:
+
+> A **bounded, goal-directed execution unit** that combines a language model with explicit role definition, scoped authority, tool permissions, policies, memory rules, and evaluation criteria, and operates under coordination by an engine or other agents.
+
+---
+
+## What an Agent Is NOT
+
+An agent is **NOT**:
+
+- ❌ Just a prompt
+- ❌ Just a model call
+- ❌ Just a chatbot
+
+---
+
+## What an Agent IS
+
+An agent **IS**:
+
+- ✅ A controlled actor in a larger system
+- ✅ Governed by policy
+- ✅ Measurable
+- ✅ Replaceable
+- ✅ Composable
+
+---
+
+# Core Agent Components (7 Required)
+
+> **Every serious agent has all seven of these. Missing even one leads to fragile systems.**
+
+---
+
+## 1. Role & Mission
+
+### What is an agent responsible for?
+
+The **role** defines:
+- What problems the agent is allowed to solve
+- What decisions it can make
+- What outputs it is accountable for
+
+The **mission** is the success condition.
+
+**Think of this as the agent's job description, not instructions.**
+
+### How is the role defined and scoped?
+
+Roles are defined using:
+- ✅ Explicit task domains
+- ✅ Output expectations
+- ✅ Authority boundaries
+
+### Example Role Statement
+
+```
+"This agent is responsible for reviewing application source code for 
+correctness, maintainability, and security issues. It does not write 
+production code."
+```
+
+### Example Agent Roles
+
+| Agent Role | Responsibility |
+|------------|----------------|
+| **Code Reviewer** | Identify bugs, style issues, security risks |
+| **Data Analyst** | Analyze datasets and produce insights |
+| **Security Auditor** | Detect vulnerabilities and misconfigurations |
+| **Research Agent** | Gather and synthesize external information |
+| **Planner Agent** | Decompose goals into executable tasks |
+
+---
+
+## 2. Scope Boundaries
+
+### What must an agent NOT do?
+
+Scope boundaries define **negative authority**—actions the agent is explicitly forbidden from taking.
+
+### Examples:
+
+- ❌ A reviewer must not deploy code
+- ❌ A researcher must not fabricate sources
+- ❌ A support agent must not modify databases
+
+### How are boundaries enforced?
+
+Boundaries are enforced via:
+- ✅ System policies (hard constraints)
+- ✅ Tool allowlists
+- ✅ Output validators
+- ✅ Refusal rules
+
+**These are not suggestions. They are enforced before execution and after generation.**
+
+### Example Scope Violations & Prevention
+
+| Violation | Prevention Mechanism |
+|-----------|----------------------|
+| Agent deletes files | Tool denylist |
+| Agent gives legal advice | Policy refusal |
+| Agent executes prod commands | Environment restriction |
+| Agent answers outside expertise | Role-based refusal |
+
+---
+
+## 3. Tool Permissions
+
+### Which tools can an agent use?
+
+Each agent has a **tool permission set**, not global access.
+
+Permissions define:
+- ✅ Which tools
+- ✅ Which modes (read/write)
+- ✅ Which environments
+
+### How permissions are granted/restricted
+
+Permissions are defined **declaratively**:
+
+```yaml
+tools:
+  allow:
+    - web_search (read-only)
+    - file_read
+  deny:
+    - file_delete
+    - shell_exec
+```
+
+**The engine enforces this at runtime.**
+
+### Example Tool Profiles
+
+#### Security Auditor
+```
+✅ config_parser
+✅ policy_lookup
+❌ shell_exec
+❌ deployment APIs
+```
+
+#### Research Agent
+```
+✅ web_search
+✅ citation_fetch
+❌ code_execution
+```
+
+---
+
+## 4. Policies/Guardrails
+
+### What are policies?
+
+Policies are **system-wide constraints** that apply regardless of agent role.
+
+They protect:
+- ✅ Safety
+- ✅ Legal compliance
+- ✅ Output quality
+- ✅ Trustworthiness
+
+### Policies vs Scope Boundaries
+
+| Aspect | Policies | Scope Boundaries |
+|--------|----------|------------------|
+| **Level** | System-wide | Agent-specific |
+| **Purpose** | Safety & quality | Authority control |
+| **Example** | "No secrets" | "Do not deploy code" |
+
+### Example Safety & Quality Policies
+
+- ✅ Never output secrets or credentials
+- ✅ Do not hallucinate citations
+- ✅ Refuse malware or exploit creation
+- ✅ State uncertainty explicitly
+- ✅ Follow output schemas strictly
+
+---
+
+## 5. Inputs/Outputs
+
+### What does an agent consume?
+
+Agents consume **structured and unstructured inputs**, typically:
+- User requests
+- Planner tasks
+- Tool outputs
+- Other agent outputs
+
+### Input Schema Example
+
+```json
+{
+  "task_id": "string",
+  "objective": "string",
+  "context": "string",
+  "constraints": ["string"]
+}
+```
+
+### What does an agent produce?
+
+Outputs are:
+- ✅ Structured
+- ✅ Validated
+- ✅ Machine-consumable
+
+### Output Schema Example
+
+```json
+{
+  "status": "success | partial | failure",
+  "result": "string",
+  "confidence": 0.85,
+  "notes": ["string"]
+}
+```
+
+**Schemas allow:**
+- ✅ Validation
+- ✅ Composition
+- ✅ Automation
+
+---
+
+## 6. Memory Strategy
+
+### What should the agent remember?
+
+Agents remember:
+- ✅ Task-relevant facts
+- ✅ Prior decisions
+- ✅ Constraints
+- ✅ Intermediate results
+
+### What must NOT be remembered?
+
+- ❌ Secrets
+- ❌ Personal data
+- ❌ Credentials
+- ❌ One-time sensitive inputs
+
+### Memory Types
+
+| Type | Purpose |
+|------|---------|
+| **Short-term** | Current task context |
+| **Session memory** | Multi-step workflows |
+| **Long-term** | Preferences, stable facts |
+
+**Memory is explicitly written, never implicit.**
+
+---
+
+## 7. Evaluation Rubric
+
+### How is success measured?
+
+Agents are evaluated **continuously**.
+
+### Common Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **Accuracy** | Correctness of output |
+| **Safety** | Policy compliance |
+| **Efficiency** | Tool calls, retries |
+| **Coverage** | Completeness |
+| **Confidence** | Self-estimated certainty |
+
+### Example Success Criteria
+
+- ✅ All required outputs present
+- ✅ No policy violations
+- ✅ Confidence ≥ 0.8
+- ✅ No unnecessary tool calls
+
+---
+
+# Agent Architecture Patterns
+
+---
+
+# Pattern 1: Single-Agent Architecture
+
+## Description
+
+One agent:
+- Plans
+- Executes
+- Uses tools
+- Validates outputs
+
+## When This Pattern Is Appropriate
+
+- ✅ Simple workflows
+- ✅ Low risk
+- ✅ Short tasks
+- ✅ Minimal tool usage
+
+## Limitations
+
+- ❌ Cognitive overload
+- ❌ Harder to debug
+- ❌ Less specialization
+- ❌ Poor scalability
+
+---
+
+## Example: Single-Agent "Research Agent"
+
+### Role
+Gather, synthesize, and summarize external information.
+
+### Scope
+- ❌ No opinions
+- ❌ No fabrication
+- ❌ No execution
+
+### Tools
+- ✅ `web_search`
+- ✅ `citation_fetch`
+
+### Memory
+- Session-only
+
+### Evaluation
+- Source accuracy
+- Citation completeness
+
+---
+
+## Single-Agent Flow
+
+```mermaid
+flowchart TD
+    U[User Request]
+    A[Research Agent]
+    T[Web Search]
+    V[Validator]
+    O[Output]
+
+    U --> A
+    A --> T
+    T --> A
+    A --> V
+    V --> O
+```
+
+---
+
+# Pattern 2: Multi-Agent Architecture
+
+## Description
+
+A **coordinator** manages multiple **specialist agents**.
+
+Each agent:
+- ✅ Has a narrow role
+- ✅ Does one thing well
+
+## When Multi-Agent Is Necessary
+
+- ✅ Complex tasks
+- ✅ High risk domains
+- ✅ Long workflows
+- ✅ Need for verification
+
+## Avoid it when:
+
+- ❌ Task is trivial
+- ❌ Latency matters more than correctness
+
+---
+
+## Example Multi-Agent System
+
+### Agents
+
+1. **Planner Agent** — Decomposes tasks
+2. **Researcher Agent** — Gathers data
+3. **Writer Agent** — Produces narrative
+4. **Verifier Agent** — Validates correctness & safety
+
+---
+
+## Interaction Flow
+
+```mermaid
+flowchart TD
+    U[User]
+    P[Planner Agent]
+    R[Researcher Agent]
+    W[Writer Agent]
+    V[Verifier Agent]
+    O[Final Output]
+
+    U --> P
+    P --> R
+    R --> P
+    P --> W
+    W --> V
+    V -->|approved| O
+    V -->|revise| W
+```
+
+---
+
+## Example Coordination Logic (Pseudo-code)
+
+```python
+# Multi-agent coordination
+plan = planner.decompose(user_input)
+
+research = researcher.execute(plan.research_tasks)
+draft = writer.generate(research)
+
+if verifier.validate(draft):
+    return draft
+else:
+    return writer.revise(draft)
+```
+
+---
+
+# Trade-offs: Single vs Multi-Agent
+
+| Aspect | Single-Agent | Multi-Agent |
+|--------|--------------|-------------|
+| **Complexity** | Low | High |
+| **Debuggability** | Low | High |
+| **Accuracy** | Medium | High |
+| **Latency** | Low | Higher |
+| **Scalability** | Poor | Strong |
+
+---
+
+# Final Mental Model (Critical)
+
+> **An agent is a controlled actor, not a chatbot.**
+
+## Claude-style systems work because:
+
+1. ✅ **Agents are bounded** — Clear roles and limits
+2. ✅ **Authority is explicit** — Permissions, not promises
+3. ✅ **Tools are restricted** — Allowlists, not trust
+4. ✅ **Outputs are validated** — Checks before delivery
+5. ✅ **Coordination is enforced** — Orchestrated, not ad-hoc
+
+---
+
+## This is what turns LLMs into reliable systems.
+
+```
+┌─────────────────────────────────────────────┐
+│         AGENT = CONTROLLED ACTOR            │
+│                                             │
+│  Role + Scope + Tools + Policies +          │
+│  I/O + Memory + Evaluation                  │
+│                                             │
+│  Operating under:                           │
+│  - Engine coordination                      │
+│  - Policy enforcement                       │
+│  - Continuous validation                    │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Implementation Checklist
+
+When building an agent, ensure you have:
+
+- [ ] **Role & Mission** — Clear job description
+- [ ] **Scope Boundaries** — Explicit "must not do" list
+- [ ] **Tool Permissions** — Allowlist/denylist defined
+- [ ] **Policies** — Safety and quality guardrails
+- [ ] **Input Schema** — Structured, validated inputs
+- [ ] **Output Schema** — Structured, validated outputs
+- [ ] **Memory Strategy** — What to remember/forget
+- [ ] **Evaluation Rubric** — Success metrics defined
+
+<a id="task-f"></a>
+# TASK F - Build 2 Agents (Practical Design)
+
+# AI Agent Specifications: Code Generator & Code Reviewer
+
+Production-ready specifications for two complementary AI agents designed for software development workflows. These agents are composable, policy-aligned, and production-implementable.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Agent 1: Code Generator](#agent-1-code-generator)
+- [Agent 2: Code Reviewer](#agent-2-code-reviewer)
+- [Agent Composition](#agent-composition)
+- [Implementation Guide](#implementation-guide)
+
+---
+
+## Overview
+
+This repository contains complete specifications for two complementary AI agents:
+
+1. **Code Generator** — Generates production-quality code from requirements
+2. **Code Reviewer** — Reviews code for bugs, security, and quality issues
+
+Together, they form a **safe, scalable agentic workflow** for code generation and validation.
+
+---
+
+# Agent 1: Code Generator
+
+## 1. Agent Name
+
+**Agent: Code Generator**
+
+---
+
+## 2. Purpose / Mission
+
+Generate **correct, secure, production-quality source code** from structured requirements while adhering to engineering standards, constraints, and best practices.
+
+---
+
+## 3. Responsibilities
+
+- ✅ Translate functional requirements into executable code
+- ✅ Select appropriate language constructs, libraries, and patterns
+- ✅ Generate readable, maintainable, and documented code
+- ✅ Respect security, performance, and style constraints
+- ✅ Produce code that passes basic static validation
+
+---
+
+## 4. Out-of-Scope
+
+- ❌ Reviewing or approving its own code quality
+- ❌ Deploying code to any environment
+- ❌ Modifying existing production systems
+- ❌ Generating exploits, malware, or insecure patterns
+- ❌ Making architectural decisions without explicit input
+
+---
+
+## 5. Inputs Required
+
+### Input Schema
+```json
+{
+  "language": "string",
+  "task_description": "string",
+  "constraints": {
+    "performance": "low | medium | high",
+    "security_level": "standard | strict",
+    "style_guide": "string"
+  },
+  "environment": {
+    "runtime": "string",
+    "dependencies_allowed": ["string"]
+  }
+}
+```
+
+### Required Fields
+
+- ✅ `language`
+- ✅ `task_description`
+
+---
+
+## 6. Outputs Produced
+
+### Output Schema
+```json
+{
+  "status": "success | partial | failure",
+  "code": "string",
+  "notes": ["string"],
+  "assumptions": ["string"],
+  "confidence": 0.85
+}
+```
+
+---
+
+## 7. Tools Allowed
+
+| Tool | Permission |
+|------|------------|
+| `code_syntax_checker` | ✅ read |
+| `dependency_lookup` | ✅ read |
+| `file_read` | ✅ read |
+| `shell_exec` | ❌ **not allowed** |
+
+---
+
+## 8. Rules & Guardrails
+
+- ✅ Never include hardcoded secrets or credentials
+- ✅ Do not use unapproved dependencies
+- ✅ Follow the specified style guide strictly
+- ✅ Prefer clarity over cleverness
+- ✅ If requirements are ambiguous, do not guess silently
+
+---
+
+## 9. Decision Policy
+
+### Ask clarifying questions when:
+
+- ❓ Core requirements are missing
+- ❓ Security or performance expectations are unclear
+
+### Make reasonable assumptions when:
+
+- ✅ Defaults are industry-standard and low-risk
+
+**All assumptions must be explicitly listed in output.**
+
+---
+
+## 10. Quality Checklist
+
+- ✅ Code compiles or is syntactically valid
+- ✅ No security anti-patterns (e.g., `eval`, plaintext secrets)
+- ✅ Clear function boundaries and naming
+- ✅ Confidence score ≥ 0.75
+- ✅ No unused imports or dead code
+
+---
+
+## 11. Example Runs
+
+### Example 1 — API Utility Function
+
+#### Sample Input
+```json
+{
+  "language": "python",
+  "task_description": "Create a function that validates email addresses",
+  "constraints": {
+    "performance": "low",
+    "security_level": "standard",
+    "style_guide": "PEP8"
+  },
+  "environment": {
+    "runtime": "python3.11",
+    "dependencies_allowed": []
+  }
+}
+```
+
+#### Tool Usage
+
+- `code_syntax_checker` (read)
+
+#### Decision Points
+
+- No external dependencies allowed → use regex
+- Email validation is non-critical → standard regex acceptable
+
+#### Expected Output
+```json
+{
+  "status": "success",
+  "code": "import re\n\ndef is_valid_email(email: str) -> bool:\n    pattern = r\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\"\n    return bool(re.match(pattern, email))",
+  "notes": ["Uses simple regex; not RFC-complete"],
+  "assumptions": ["Basic email validation sufficient"],
+  "confidence": 0.88
+}
+```
+
+---
+
+### Example 2 — Ambiguous Requirements
+
+#### Sample Input
+```json
+{
+  "language": "javascript",
+  "task_description": "Create a cache",
+  "constraints": {
+    "performance": "high",
+    "security_level": "standard",
+    "style_guide": "eslint"
+  },
+  "environment": {
+    "runtime": "node18",
+    "dependencies_allowed": []
+  }
+}
+```
+
+#### Decision
+
+Missing cache type and eviction policy → **ask clarification**
+
+#### Expected Output
+```json
+{
+  "status": "partial",
+  "code": "",
+  "notes": ["Cache type and eviction policy unspecified"],
+  "assumptions": [],
+  "confidence": 0.40
+}
+```
+
+---
+
+# Agent 2: Code Reviewer
+
+## 1. Agent Name
+
+**Agent: Code Reviewer**
+
+---
+
+## 2. Purpose / Mission
+
+Review source code to identify **bugs, security issues, performance risks, and maintainability problems**, and provide actionable feedback.
+
+---
+
+## 3. Responsibilities
+
+- ✅ Analyze code for correctness and edge cases
+- ✅ Identify security vulnerabilities and unsafe patterns
+- ✅ Check adherence to style and best practices
+- ✅ Suggest improvements without rewriting entire systems
+- ✅ Produce structured, prioritized feedback
+
+---
+
+## 4. Out-of-Scope
+
+- ❌ Writing new features from scratch
+- ❌ Deploying or executing code
+- ❌ Modifying files directly
+- ❌ Approving releases
+- ❌ Making business or product decisions
+
+---
+
+## 5. Inputs Required
+
+### Input Schema
+```json
+{
+  "language": "string",
+  "source_code": "string",
+  "context": {
+    "runtime": "string",
+    "security_level": "standard | strict"
+  }
+}
+```
+
+---
+
+## 6. Outputs Produced
+
+### Output Schema
+```json
+{
+  "issues": [
+    {
+      "severity": "low | medium | high | critical",
+      "category": "bug | security | performance | style",
+      "description": "string",
+      "recommendation": "string"
+    }
+  ],
+  "overall_risk": "low | medium | high",
+  "confidence": 0.85
+}
+```
+
+---
+
+## 7. Tools Allowed
+
+| Tool | Permission |
+|------|------------|
+| `static_analyzer` | ✅ read |
+| `dependency_lookup` | ✅ read |
+| `file_read` | ✅ read |
+| `shell_exec` | ❌ **not allowed** |
+
+---
+
+## 8. Rules & Guardrails
+
+- ✅ Never execute the code being reviewed
+- ✅ Do not suggest insecure workarounds
+- ✅ Avoid speculative issues without evidence
+- ✅ Be constructive and specific
+- ✅ No hallucinated APIs or libraries
+
+---
+
+## 9. Decision Policy
+
+### Ask clarifying questions when:
+
+- ❓ Code context (runtime, usage) affects correctness
+
+### Make assumptions when:
+
+- ✅ Patterns are well-known and low-risk
+- ✅ Severity must match evidence strength
+
+---
+
+## 10. Quality Checklist
+
+- ✅ All findings mapped to code evidence
+- ✅ No false positives without explanation
+- ✅ Severity distribution reasonable
+- ✅ Confidence score ≥ 0.8
+- ✅ Clear, actionable recommendations
+
+---
+
+## 11. Example Runs
+
+### Example 1 — Insecure Python Code
+
+#### Sample Input
+```json
+{
+  "language": "python",
+  "source_code": "password = 'admin123'\nprint(password)",
+  "context": {
+    "runtime": "python3.10",
+    "security_level": "strict"
+  }
+}
+```
+
+#### Tool Usage
+
+- `static_analyzer` (read)
+
+#### Decision Points
+
+- Hardcoded credential detected → **critical issue**
+
+#### Expected Output
+```json
+{
+  "issues": [
+    {
+      "severity": "critical",
+      "category": "security",
+      "description": "Hardcoded credential found in source code",
+      "recommendation": "Use environment variables or a secure secret manager"
+    }
+  ],
+  "overall_risk": "high",
+  "confidence": 0.95
+}
+```
+
+---
+
+### Example 2 — Performance Issue
+
+#### Sample Input
+```json
+{
+  "language": "python",
+  "source_code": "for i in range(len(items)):\n    print(items[i])",
+  "context": {
+    "runtime": "python3.11",
+    "security_level": "standard"
+  }
+}
+```
+
+#### Decision Points
+
+- No security risk → focus on style/performance
+
+#### Expected Output
+```json
+{
+  "issues": [
+    {
+      "severity": "low",
+      "category": "performance",
+      "description": "Index-based iteration unnecessary",
+      "recommendation": "Iterate directly over the list"
+    }
+  ],
+  "overall_risk": "low",
+  "confidence": 0.82
+}
+```
+
+---
+
+# Agent Composition
+
+## How These Agents Work Together
+```mermaid
+flowchart LR
+    REQ[Requirements]
+    GEN[Code Generator]
+    REV[Code Reviewer]
+    OUT[Approved Code]
+    FIX[Revisions Needed]
+
+    REQ --> GEN
+    GEN --> REV
+    REV -->|Pass| OUT
+    REV -->|Issues Found| FIX
+    FIX --> GEN
+```
+
+---
+
+## Workflow Example
+```python
+# Step 1: Generate code
+generation_result = code_generator.execute({
+    "language": "python",
+    "task_description": "Create a user authentication function",
+    "constraints": {
+        "security_level": "strict"
+    }
+})
+
+# Step 2: Review generated code
+review_result = code_reviewer.execute({
+    "language": "python",
+    "source_code": generation_result["code"],
+    "context": {
+        "security_level": "strict"
+    }
+})
+
+# Step 3: Validate
+if review_result["overall_risk"] == "low":
+    return generation_result["code"]
+else:
+    # Iterate with feedback
+    return code_generator.revise(review_result["issues"])
+```
+
+---
+
+# Implementation Guide
+
+## Agent Registry Setup
+```python
+agents = {
+    "code_generator": CodeGeneratorAgent(
+        tools=["code_syntax_checker", "dependency_lookup", "file_read"],
+        policies=load_policies("code_generation")
+    ),
+    "code_reviewer": CodeReviewerAgent(
+        tools=["static_analyzer", "dependency_lookup", "file_read"],
+        policies=load_policies("code_review")
+    )
+}
+```
+
+---
+
+## Integration Example
+```python
+class CodeWorkflow:
+    def __init__(self, generator, reviewer):
+        self.generator = generator
+        self.reviewer = reviewer
+        self.max_iterations = 3
+    
+    def generate_and_review(self, requirements):
+        for attempt in range(self.max_iterations):
+            # Generate
+            code = self.generator.execute(requirements)
+            
+            if code["status"] != "success":
+                return {"error": "Generation failed", "details": code}
+            
+            # Review
+            review = self.reviewer.execute({
+                "language": requirements["language"],
+                "source_code": code["code"],
+                "context": requirements.get("context", {})
+            })
+            
+            # Check if acceptable
+            if review["overall_risk"] in ["low", "medium"]:
+                return {"code": code["code"], "review": review}
+            
+            # Refine requirements based on feedback
+            requirements = self._incorporate_feedback(requirements, review)
+        
+        return {"error": "Max iterations reached", "last_review": review}
+```
+
+---
+
+## Testing Framework
+```python
+def test_agent_pair():
+    # Test 1: Valid generation
+    gen_output = code_generator.execute({
+        "language": "python",
+        "task_description": "Create hello world function"
+    })
+    assert gen_output["status"] == "success"
+    
+    # Test 2: Review catches issues
+    review_output = code_reviewer.execute({
+        "language": "python",
+        "source_code": "password = '12345'"
+    })
+    assert any(i["severity"] == "critical" for i in review_output["issues"])
+```
+
+---
+
+# Key Characteristics
+
+These two agents are:
+
+- ✅ **Composable** — Work together in a pipeline
+- ✅ **Policy-aligned** — Follow security and quality standards
+- ✅ **Production-implementable** — Ready for real-world use
+- ✅ **Complementary** — Generation → Review workflow
+
+**Together, they form a safe, scalable agentic workflow.**
+
+---
+
+## Deployment Considerations
+
+### Security
+
+- Both agents are read-only by default
+- No code execution permissions
+- All tool calls are logged and audited
+
+### Scalability
+
+- Stateless design allows horizontal scaling
+- Each agent can process requests independently
+- Review agent can validate code from any source
+
+### Monitoring
+
+Track these metrics:
+- Generation success rate
+- Review findings distribution
+- Confidence scores over time
+- Iteration count per task
+
+<a id="task-g"></a>
+# TASK G - Multi-Agent Orchestration (Advanced)
+
+# Multi-Agent Orchestration Architecture
+
+A production-ready multi-agent system design for Software Development Lifecycle (SDLC) workflows, featuring 1 coordinator and 4 specialist agents working in concert to deliver reliable, secure, and high-quality code.
+
+---
+
+## Table of Contents
+
+- [1. System Overview](#1-system-overview)
+- [2. Agent Roster](#2-agent-roster)
+- [3. Detailed Agent Specifications](#3-detailed-agent-specifications)
+- [4. Message Flow Diagram](#4-message-flow-diagram)
+- [5. Routing Policy](#5-routing-policy)
+- [6. Conflict Resolution Strategy](#6-conflict-resolution-strategy)
+- [7. Merge Strategy](#7-merge-strategy)
+- [8. Complete Workflow Example](#8-complete-workflow-example)
+- [9. Failure Modes & Mitigations](#9-failure-modes--mitigations)
+- [10. Trade-Offs & Design Decisions](#10-trade-offs--design-decisions)
+
+---
+
+# 1. System Overview
+
+## Goal
+
+Design a Claude-style multi-agent system that can **reliably handle software development requests** by decomposing work, invoking specialists, resolving disagreements, and producing a validated final result.
+
+## Core Design Principles
+
+- ✅ **Coordinator owns control flow**
+- ✅ **Specialists own domain expertise**
+- ✅ **No agent has global authority except the Coordinator**
+- ✅ **All outputs are structured and mergeable**
+- ✅ **Failures degrade gracefully**
+
+---
+
+# 2. Agent Roster
+
+## Coordinator Agent (1)
+
+**Coordinator / Planner Agent**
+
+- **Role:** Orchestrator, task decomposer, final decision authority
+
+## Specialist Agents (4)
+
+| Agent | Role |
+|-------|------|
+| **Code Generator Agent** | Generate implementation code |
+| **Code Reviewer Agent** | Identify correctness, style, and maintainability issues |
+| **Security Auditor Agent** | Detect security vulnerabilities and unsafe patterns |
+| **Test Designer Agent** | Generate test cases and validation scenarios |
+
+---
+
+# 3. Detailed Agent Specifications
+
+---
+
+## Agent 1 — Coordinator Agent
+
+### Role
+
+Central orchestrator responsible for **planning, routing, conflict resolution, merging outputs, and final response delivery**.
+
+### Responsibilities
+
+- ✅ Decompose user requests into subtasks
+- ✅ Select and invoke specialist agents
+- ✅ Coordinate parallel vs sequential execution
+- ✅ Resolve conflicts between agents
+- ✅ Merge outputs into a coherent final result
+- ✅ Enforce global policies and quality thresholds
+
+### Input Schema
+
+```json
+{
+  "user_request": "string",
+  "context": {
+    "language": "string",
+    "constraints": ["string"],
+    "risk_level": "low | medium | high"
+  }
+}
+```
+
+### Output Schema
+
+```json
+{
+  "final_output": "string",
+  "artifacts": {
+    "code": "string",
+    "review_notes": ["string"],
+    "security_findings": ["string"],
+    "tests": ["string"]
+  },
+  "confidence": 0.92
+}
+```
+
+### Tools Allowed
+
+- ✅ Agent invocation interface (call specialists)
+- ✅ Validation engine
+- ✅ Policy checker
+
+### Decision Authority
+
+**Final authority.** Overrides specialists when conflicts arise.
+
+### Communication Protocol
+
+- Sends structured task messages
+- Receives structured JSON responses
+- **Never accepts free-form text from specialists**
+
+---
+
+## Agent 2 — Code Generator Agent
+
+### Role
+
+Generate **production-ready source code**.
+
+### Responsibilities
+
+- ✅ Translate requirements into code
+- ✅ Apply language best practices
+- ✅ Handle common edge cases
+
+### Input Schema
+
+```json
+{
+  "task": "string",
+  "language": "string",
+  "constraints": ["string"]
+}
+```
+
+### Output Schema
+
+```json
+{
+  "code": "string",
+  "assumptions": ["string"],
+  "confidence": 0.85
+}
+```
+
+### Tools Allowed
+
+- ✅ Syntax checker (read)
+- ✅ Dependency lookup (read)
+
+### Decision Authority
+
+Limited to **implementation choices only**.
+
+### Communication Protocol
+
+- Receives task from Coordinator
+- Returns code artifact only
+
+---
+
+## Agent 3 — Code Reviewer Agent
+
+### Role
+
+Evaluate code **correctness, quality, and maintainability**.
+
+### Responsibilities
+
+- ✅ Identify bugs and logic errors
+- ✅ Flag style violations
+- ✅ Suggest improvements
+
+### Input Schema
+
+```json
+{
+  "code": "string",
+  "language": "string"
+}
+```
+
+### Output Schema
+
+```json
+{
+  "issues": [
+    {
+      "severity": "low | medium | high",
+      "description": "string",
+      "recommendation": "string"
+    }
+  ],
+  "overall_quality": "pass | warn | fail"
+}
+```
+
+### Tools Allowed
+
+- ✅ Static analyzer (read)
+
+### Decision Authority
+
+**Advisory only.**
+
+---
+
+## Agent 4 — Security Auditor Agent
+
+### Role
+
+Detect **security vulnerabilities**.
+
+### Responsibilities
+
+- ✅ Identify insecure patterns
+- ✅ Flag secret handling issues
+- ✅ Recommend mitigations
+
+### Input Schema
+
+```json
+{
+  "code": "string",
+  "security_level": "standard | strict"
+}
+```
+
+### Output Schema
+
+```json
+{
+  "findings": [
+    {
+      "severity": "medium | high | critical",
+      "issue": "string",
+      "fix": "string"
+    }
+  ]
+}
+```
+
+### Tools Allowed
+
+- ✅ Security ruleset lookup (read)
+
+### Decision Authority
+
+**Can block release if critical issue found.**
+
+---
+
+## Agent 5 — Test Designer Agent
+
+### Role
+
+Design **test cases to validate functionality**.
+
+### Responsibilities
+
+- ✅ Generate unit tests
+- ✅ Identify edge cases
+- ✅ Suggest test coverage gaps
+
+### Input Schema
+
+```json
+{
+  "code": "string",
+  "requirements": "string"
+}
+```
+
+### Output Schema
+
+```json
+{
+  "tests": ["string"],
+  "coverage_notes": ["string"]
+}
+```
+
+---
+
+# 4. Message Flow Diagram
+
+## Mermaid Flowchart
+
+```mermaid
+flowchart TD
+    U[User Request]
+    C[Coordinator Agent]
+
+    CG[Code Generator]
+    CR[Code Reviewer]
+    SA[Security Auditor]
+    TD[Test Designer]
+
+    U --> C
+    C --> CG
+    CG --> C
+
+    C --> CR
+    C --> SA
+    C --> TD
+
+    CR --> C
+    SA --> C
+    TD --> C
+
+    C -->|Merge & Validate| O[Final Output]
+```
+
+## Execution Characteristics
+
+- ✅ **Code generation is sequential**
+- ✅ **Review, security, and testing run in parallel**
+- ✅ **Coordinator merges results**
+
+---
+
+# 5. Routing Policy
+
+## Routing Table
+
+| Condition | Action |
+|-----------|--------|
+| Request involves code creation | Invoke **Code Generator** |
+| Code exists | Invoke **Reviewer + Security + Test** agents |
+| High risk domain | **Security Auditor mandatory** |
+| Conflicting outputs | Trigger **conflict resolution** |
+
+## Decision Logic (Simplified)
+
+```
+IF no code exists 
+  → Code Generator
+
+IF code exists 
+  → Review + Audit + Test (parallel)
+
+IF any critical security finding 
+  → block & revise
+```
+
+---
+
+# 6. Conflict Resolution Strategy
+
+## Authority Model
+
+- ✅ **Coordinator has final authority**
+- ✅ **Security Auditor can veto on critical issues**
+
+## Conflict Scenarios & Resolution
+
+### Example Conflict 1
+
+**Scenario:**
+- Reviewer says "acceptable"
+- Security Auditor flags "critical vulnerability"
+
+**Resolution:**
+- ✅ **Security takes precedence**
+- ✅ Coordinator orders code revision
+
+---
+
+### Example Conflict 2
+
+**Scenario:**
+- Reviewer suggests refactor
+- Generator confidence is high
+
+**Resolution:**
+- ✅ Coordinator weighs severity
+- ✅ May accept as technical debt
+
+---
+
+# 7. Merge Strategy
+
+## Strategy Used
+
+**Hierarchical merge with veto rules**
+
+## Algorithm
+
+```
+1. Collect all agent outputs
+2. Apply security veto rules
+3. Aggregate review findings
+4. Attach test artifacts
+5. Produce final unified response
+```
+
+## Partial Failure Handling
+
+**If one specialist fails:**
+- ✅ Continue with reduced confidence
+- ✅ Flag missing analysis
+
+## Merged Output Schema
+
+```json
+{
+  "code": "string",
+  "issues": ["string"],
+  "security_status": "pass | fail",
+  "tests": ["string"],
+  "confidence": 0.85
+}
+```
+
+---
+
+# 8. Complete Workflow Example
+
+## User Request
+
+```
+"Write a Python function to hash passwords securely."
+```
+
+---
+
+## Step 1 — Coordinator Decomposition
+
+```
+T1: Generate code
+T2: Review code
+T3: Security audit
+T4: Design tests
+```
+
+---
+
+## Step 2 — Specialist Invocation
+
+### Code Generator → Coordinator
+
+```json
+{
+  "code": "def hash_password(pw): ...",
+  "confidence": 0.9
+}
+```
+
+### Security Auditor → Coordinator
+
+```json
+{
+  "findings": [
+    {
+      "severity": "critical",
+      "issue": "Uses SHA256 directly",
+      "fix": "Use bcrypt or argon2"
+    }
+  ]
+}
+```
+
+---
+
+## Step 3 — Conflict Resolution
+
+- ⚠️ **Security veto triggered**
+- 🔄 Coordinator requests regeneration with bcrypt
+
+---
+
+## Step 4 — Re-execution
+
+- ✅ Code regenerated
+- ✅ Security passes
+- ✅ Tests generated
+
+---
+
+## Step 5 — Final Merge & Output
+
+```json
+{
+  "final_output": "Secure bcrypt-based password hashing function",
+  "confidence": 0.92
+}
+```
+
+---
+
+# 9. Failure Modes & Mitigations
+
+| Failure | Mitigation |
+|---------|------------|
+| **Agent timeout** | Retry once, then degrade |
+| **Conflicting advice** | Coordinator arbitration |
+| **Missing tool** | Fallback to reasoning |
+| **Low confidence** | Ask user clarification |
+
+---
+
+# 10. Trade-Offs & Design Decisions
+
+## Why Multi-Agent?
+
+**Benefits:**
+- ✅ Higher correctness
+- ✅ Better safety
+- ✅ Parallelism
+
+**Costs:**
+- ❌ Higher latency
+- ❌ More complexity
+- ❌ Requires coordination logic
+
+## When NOT to Use
+
+- ❌ Simple tasks
+- ❌ Low-risk requests
+- ❌ Latency-critical flows
+
+---
+
+# Final Takeaway
+
+> **A Claude-style multi-agent system is not about intelligence.  
+> It is about control, coordination, and correctness.**
+
+The **Coordinator Agent** turns:
+
+```
+multiple fallible experts
+        ↓
+into one reliable system
+```
+
+---
+
+# Visual Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────┐
+│              USER REQUEST                           │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+         ┌─────────────────────┐
+         │  COORDINATOR AGENT  │
+         │   (Orchestrator)    │
+         └──────────┬──────────┘
+                    │
+         ┌──────────┴──────────┐
+         │                     │
+    ┌────▼────┐         ┌─────▼─────────┐
+    │  CODE   │         │   PARALLEL    │
+    │GENERATOR│         │  SPECIALISTS  │
+    └────┬────┘         └─────┬─────────┘
+         │                    │
+         │              ┌─────┼─────┐
+         │              │     │     │
+         │         ┌────▼──┬──▼──┬──▼────┐
+         │         │REVIEW │AUDIT│ TEST  │
+         │         │ AGENT │AGENT│AGENT  │
+         │         └───┬───┴──┬──┴───┬───┘
+         │             │      │      │
+         └─────────────┴──────┴──────┘
+                       │
+                 ┌─────▼──────┐
+                 │   MERGE &  │
+                 │  VALIDATE  │
+                 └─────┬──────┘
+                       │
+                       ▼
+              ┌────────────────┐
+              │ FINAL OUTPUT   │
+              └────────────────┘
+```
+
+---
+
+# Implementation Guide
+
+## Agent Registry Setup
+
+```python
+coordinator = CoordinatorAgent(
+    specialists={
+        "generator": CodeGeneratorAgent(),
+        "reviewer": CodeReviewerAgent(),
+        "security": SecurityAuditorAgent(),
+        "tester": TestDesignerAgent()
+    },
+    policies=load_policies("multi_agent")
+)
+```
+
+## Execution Example
+
+```python
+class MultiAgentWorkflow:
+    def execute(self, user_request):
+        # Step 1: Plan
+        plan = self.coordinator.decompose(user_request)
+        
+        # Step 2: Generate (sequential)
+        code = self.coordinator.invoke("generator", plan.generation_task)
+        
+        # Step 3: Analyze (parallel)
+        results = self.coordinator.invoke_parallel([
+            ("reviewer", {"code": code}),
+            ("security", {"code": code}),
+            ("tester", {"code": code})
+        ])
+        
+        # Step 4: Resolve conflicts
+        if self.has_conflicts(results):
+            results = self.coordinator.resolve_conflicts(results)
+        
+        # Step 5: Merge
+        return self.coordinator.merge(code, results)
+```
+
+---
+
+# Testing Framework
+
+```python
+def test_multi_agent_workflow():
+    # Test 1: Security veto
+    request = {"task": "hash passwords", "security_level": "strict"}
+    result = workflow.execute(request)
+    assert "bcrypt" in result["code"] or "argon2" in result["code"]
+    
+    # Test 2: Conflict resolution
+    # Simulate conflicting outputs
+    assert result["confidence"] >= 0.8
+    
+    # Test 3: Parallel execution
+    # Verify all specialists invoked
+    assert "review_notes" in result["artifacts"]
+    assert "security_findings" in result["artifacts"]
+    assert "tests" in result["artifacts"]
+```
+
+<a id="diagram"></a>
+# Claude Architecture Diagrams
+
+Comprehensive technical diagrams documenting Claude-like AI architecture, including the full stack layers and multi-agent orchestration patterns.
+
+---
+
+## Table of Contents
+
+- [Diagram 1: Claude Architecture Stack](#diagram-1-claude-architecture-stack)
+- [Diagram 2: Agent Orchestration](#diagram-2-agent-orchestration)
+- [Legend & Notation Guide](#legend--notation-guide)
+- [Example Data Formats](#example-data-formats)
+
+---
+
+# Diagram 1: Claude Architecture Stack
+
+## Mermaid Diagram
+```mermaid
+flowchart TB
+    subgraph USER["🧑 USER LAYER"]
+        UI[User Input]
+        UP[Intent Parser]
+        UF[Feedback Handler]
+        UC[Constraint Manager]
+    end
+
+    subgraph ENGINE["🧠 CLAUDE ENGINE LAYER"]
+        PL[Planner]
+        RT[Router]
+        RC[Reasoning Core]
+        VL[Validator]
+    end
+
+    subgraph SKILLS["⚙️ SKILLS LAYER"]
+        S1[Skill: Code Review]
+        S2[Skill: Document Summary]
+        S3[Skill: Security Audit]
+        S4[Skill: Data Analysis]
+    end
+
+    subgraph POLICY["📜 POLICY/CONSTITUTION LAYER"]
+        POL[".claude.md"]
+        SAF[Safety Rules]
+        BEH[Behavioral Constraints]
+        PRI[Priority Hierarchy]
+    end
+
+    subgraph TOOLS["🔧 TOOLS LAYER"]
+        T1[Web Search]
+        T2[Code Execution]
+        T3[File Operations]
+        T4[API Calls]
+    end
+
+    %% User to Engine
+    UI -->|user query| UP
+    UP -->|parsed intent| PL
+    UF -.->|clarifications| PL
+
+    %% Engine Internal Flow
+    PL -->|task plan| POL
+    POL -->|policy check| RT
+    RT -->|select skill| SKILLS
+    RT -->|or direct reasoning| RC
+    SKILLS -->|execute| RC
+    RC -->|needs tools?| TOOLS
+    TOOLS -->|tool results| RC
+    RC -->|output| VL
+    
+    %% Validation & Feedback
+    VL -->|policy check| POL
+    VL -->|✅ approved| UF
+    VL -->|❌ rejected| PL
+    
+    %% Policy Enforcement Points
+    POL -.->|enforce| RT
+    POL -.->|enforce| RC
+    POL -.->|enforce| TOOLS
+
+    %% Output to User
+    UF -->|final response| UI
+
+    %% Styling
+    classDef userStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    classDef engineStyle fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef skillStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef policyStyle fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef toolStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class UI,UP,UF,UC userStyle
+    class PL,RT,RC,VL engineStyle
+    class S1,S2,S3,S4 skillStyle
+    class POL,SAF,BEH,PRI policyStyle
+    class T1,T2,T3,T4 toolStyle
+```
+
+---
+
+## ASCII Art Version
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      🧑 USER LAYER                          │
+│  ┌──────────┐  ┌─────────────┐  ┌──────────────┐            │
+│  │   User   │→→│Intent Parser│→→│  Constraint  │            │
+│  │  Input   │  │             │  │   Manager    │            │
+│  └──────────┘  └─────────────┘  └──────────────┘            │
+│       ↑                                  ↓                  │
+│       │                          ┌──────────────┐           │
+│       │                          │  Feedback    │           │
+│       └──────────────────────────│   Handler    │           │
+│                                  └──────────────┘           │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ (parsed intent)
+                        ↓
+┌─────────────────────────────────────────────────────────────┐
+│                  🧠 CLAUDE ENGINE LAYER                     │
+│  ┌──────────┐     ┌──────────┐     ┌──────────┐             │
+│  │ Planner  │────→│  Router  │────→│ Reasoning│             │
+│  │          │     │          │     │   Core   │             │
+│  └────┬─────┘     └──────────┘     └────┬─────┘             │
+│       │                                 │                   │
+│       │  ┌──────────────────────────────┘                   │
+│       │  │                                                  │
+│       │  ↓                                                  │
+│       │  ┌──────────┐                                       │
+│       │  │Validator │←─────────────────┐                    │
+│       │  └────┬─────┘                  │                    │
+│       │       │                        │                    │
+│       │       ├─→ ✅ approved ─────────┤                   │
+│       │       └─→ ❌ rejected ─────────┘                   │
+│       ↓           (feedback loop)                           │
+└───────┼─────────────────────────────────────────────────────┘
+        │ (policy check)
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│            📜 POLICY/CONSTITUTION LAYER                     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              .claude.md                              │   │
+│  │  • Safety Rules    • Behavioral Constraints          │   │ 
+│  │  • Priority Hierarchy    • Tool Permissions          │   │
+│  └──────────────────────────────────────────────────────┘   │
+│         │                    │                    │         │
+│         ├────────────────────┼────────────────────┤         │
+│         ↓                    ↓                    ↓         │
+└─────────┼────────────────────┼────────────────────┼─────────┘
+          │ (enforce)          │ (enforce)          │ (enforce)
+          ↓                    ↓                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    ⚙️ SKILLS LAYER                          |
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │Code Review  │  │Doc Summary  │  │Security     │          │
+│  │   Skill     │  │   Skill     │  │Audit Skill  │  ...     │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
+│         │                │                │                 │
+│         └────────────────┼────────────────┘                 │
+│                          ↓                                  │
+└──────────────────────────┼──────────────────────────────────┘
+                           │ (tool invocation)
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    🔧 TOOLS LAYER                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Web Search  │  │    Code     │  │    File     │          │
+│  │             │  │  Execution  │  │ Operations  │  ...     │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+
+LEGEND:
+  ──→  Data flow (solid)
+  ··→  Control flow (dotted)
+  ←─→  Bi-directional
+  ✅   Validation passed
+  ❌   Validation failed
+```
+
+---
+
+## Component Explanations
+
+### Layer 1: User Layer (Top)
+
+**Components:**
+- **User Input** — Entry point for queries
+- **Intent Parser** — Classifies and structures user requests
+- **Feedback Handler** — Manages responses and clarifications
+- **Constraint Manager** — Tracks rate limits, context windows
+
+**Key Flows:**
+- User query → Intent Parser → Engine
+- Feedback Handler ← Validator ← Engine
+
+---
+
+### Layer 2: Claude Engine Layer
+
+**Components:**
+- **Planner** — Decomposes tasks into subtasks (DAG construction)
+- **Router** — Selects skills or tools based on task requirements
+- **Reasoning Core** — Transformer inference + chain-of-thought
+- **Validator** — Checks safety, schema, consistency
+
+**Key Flows:**
+- Planner → Policy Check → Router → Reasoning Core
+- Reasoning Core → Validator → (✅ approved | ❌ retry)
+
+**Validation Checkpoint:**
+```
+Validator checks:
+1. Schema validation
+2. Safety scan
+3. Policy compliance
+4. Confidence threshold
+```
+
+---
+
+### Layer 3: Skills Layer
+
+**Components:**
+- Reusable, composable capability modules
+- Examples: Code Review, Document Summary, Security Audit
+
+**Key Flows:**
+- Router selects skill → Skill executes → Returns to Reasoning Core
+- Skills may invoke Tools Layer
+
+---
+
+### Layer 4: Policy/Constitution Layer
+
+**Components:**
+- **`.claude.md`** — System prompt + rules
+- **Safety Rules** — Content restrictions
+- **Behavioral Constraints** — Tone, style, refusals
+- **Priority Hierarchy** — System > Developer > User
+
+**Enforcement Points:**
+- ✅ Policy checked before routing
+- ✅ Policy checked before tool invocation
+- ✅ Policy checked during validation
+
+---
+
+### Layer 5: Tools Layer (Bottom)
+
+**Components:**
+- **Web Search** — External information retrieval
+- **Code Execution** — Sandboxed runtime
+- **File Operations** — Read/write artifacts
+- **API Calls** — External services
+
+**Key Flows:**
+- Reasoning Core requests tool → Tool executes → Returns result
+- All tool calls logged and sandboxed
+
+---
+
+# Diagram 2: Agent Orchestration
+
+## Mermaid Diagram
+```mermaid
+flowchart TB
+    USER[👤 User Request]
+    COORD[🎯 Coordinator Agent]
+    
+    subgraph SEQUENTIAL["⚡ SEQUENTIAL PHASE"]
+        GEN[🔧 Code Generator Agent]
+    end
+    
+    subgraph PARALLEL["🔀 PARALLEL PHASE"]
+        REV[📝 Code Reviewer Agent]
+        SEC[🔒 Security Auditor Agent]
+        TEST[✅ Test Designer Agent]
+    end
+    
+    CONFLICT{⚠️ Conflicts?}
+    RESOLUTION[🔄 Conflict Resolution]
+    MERGE[📦 Merge & Aggregate]
+    OUTPUT[📤 Final Output]
+
+    USER -->|initial request| COORD
+    COORD -->|decompose task| COORD
+    COORD -->|Task 1: Generate| GEN
+    GEN -->|code artifact| COORD
+    
+    COORD -->|Task 2: Review| REV
+    COORD -->|Task 3: Audit| SEC
+    COORD -->|Task 4: Test| TEST
+    
+    REV -->|review results| CONFLICT
+    SEC -->|security findings| CONFLICT
+    TEST -->|test cases| CONFLICT
+    
+    CONFLICT -->|YES| RESOLUTION
+    CONFLICT -->|NO| MERGE
+    
+    RESOLUTION -->|Security Veto?| COORD
+    RESOLUTION -->|Revise Code| GEN
+    RESOLUTION -->|Resolved| MERGE
+    
+    MERGE -->|validate & combine| OUTPUT
+    OUTPUT -->|deliver| USER
+
+    %% Styling
+    classDef coordStyle fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    classDef seqStyle fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef parallelStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef decisionStyle fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef mergeStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class COORD coordStyle
+    class GEN seqStyle
+    class REV,SEC,TEST parallelStyle
+    class CONFLICT,RESOLUTION decisionStyle
+    class MERGE,OUTPUT mergeStyle
+```
+
+---
+
+## ASCII Art Version
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     👤 USER REQUEST                          │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ↓
+        ┌────────────────────────────────────┐
+        │   🎯 COORDINATOR/PLANNER AGENT     │
+        │   • Decomposes task                │
+        │   • Routes to specialists          │
+        │   • Resolves conflicts             │
+        │   • Merges outputs                 │
+        └────────────┬───────────────────────┘
+                     │
+                     ↓
+        ┌────────────────────────────────────┐
+        │    ⚡ SEQUENTIAL PHASE             │
+        │                                    │
+        │  ┌──────────────────────────────┐  │
+        │  │  🔧 CODE GENERATOR AGENT     |  │
+        │  │  Generates implementation    │  │
+        │  └────────────┬─────────────────┘  │
+        └───────────────┼────────────────────┘
+                        │ (code artifact)
+                        ↓
+        ┌───────────────────────────────────────────────┐
+        │          🔀 PARALLEL PHASE                    │
+        │                                               │
+        │  ┌──────────────┐  ┌──────────────┐           │
+        │  │ 📝 CODE      │  │ 🔒 SECURITY  │           │
+        │  │   REVIEWER   │  │   AUDITOR    │           │
+        │  └──────┬───────┘  └──────┬───────┘           │
+        │         │                  │                  │
+        │         │     ┌────────────┴─────┐            │
+        │         │     │  ✅ TEST         │            │
+        │         │     │    DESIGNER      │            │
+        │         │     └────────┬─────────┘            │
+        │         │              │                      │
+        └─────────┼──────────────┼──────────────────────┘
+                  │              │
+                  └──────┬───────┘
+                         │ (all results collected)
+                         ↓
+                 ┌────────────────┐
+                 │  ⚠️ CONFLICTS? │
+                 └───┬───────┬────┘
+                     │       │
+              YES ───┘       └─── NO
+                 │               │
+                 ↓               ↓
+        ┌─────────────────┐  ┌─────────────────┐
+        │ 🔄 CONFLICT     │  │  📦 MERGE &     │
+        │   RESOLUTION    │  │   AGGREGATE     │
+        │                 │  │                 │
+        │ • Security Veto │  │ • Combine data  │
+        │ • Coordinator   │  │ • Validate      │
+        │   Arbitration   │  │ • Structure     │
+        └────┬────────────┘  └────┬────────────┘
+             │                    │
+             │ (if revision       │
+             │  needed)           │
+             ↓                    │
+        ┌────────┐                │
+        │ REVISE │                │
+        │  CODE  │                │
+        └───┬────┘                │
+            │                     │
+            └─────────────────────┘
+                     │
+                     ↓
+            ┌─────────────────┐
+            │  📤 FINAL       │
+            │    OUTPUT       │
+            └────────┬────────┘
+                     │
+                     ↓
+            ┌─────────────────┐
+            │   👤 USER       │
+            └─────────────────┘
+
+EXECUTION PATTERNS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+→ Sequential (must wait)
+⇉ Parallel (concurrent)
+↻ Iteration/Feedback loop
+```
+
+---
+
+## Component Explanations
+
+### User Request (Entry Point)
+
+Initial query enters the system and is received by the Coordinator.
+
+**Example:**
+```json
+{
+  "request": "Write and validate a secure password hashing function",
+  "language": "python",
+  "security_level": "strict"
+}
+```
+
+---
+
+### Coordinator Agent (Orchestrator)
+
+**Responsibilities:**
+- Decomposes user request into subtasks
+- Routes tasks to appropriate specialists
+- Manages execution order (sequential vs parallel)
+- Resolves conflicts between agents
+- Merges outputs into final response
+
+**Decision Points:**
+```
+1. Does task require code generation? → Route to Generator
+2. Does code exist? → Route to Reviewers (parallel)
+3. Are there conflicts? → Trigger resolution
+4. Is security critical? → Security has veto power
+```
+
+---
+
+### Sequential Phase
+
+**Code Generator Agent** executes first (blocking):
+- Must complete before parallel phase begins
+- Produces code artifact that other agents will analyze
+
+---
+
+### Parallel Phase
+
+Three specialists run concurrently:
+
+1. **Code Reviewer Agent**
+   - Analyzes correctness, style, maintainability
+   - Advisory role
+
+2. **Security Auditor Agent**
+   - Detects vulnerabilities
+   - **Veto power** on critical issues
+
+3. **Test Designer Agent**
+   - Generates test cases
+   - Identifies edge cases
+
+---
+
+### Conflict Detection & Resolution
+
+**When conflicts occur:**
+```
+Scenario: Reviewer says "OK" but Security flags critical issue
+
+Resolution:
+1. Security veto triggered
+2. Coordinator orders code regeneration
+3. Loop back to Generator with constraints
+4. Re-evaluate until conflict resolved
+```
+
+**Authority Hierarchy:**
+```
+Security (critical) > Coordinator > Reviewer/Tester (advisory)
+```
+
+---
+
+### Merge & Aggregate
+
+**Merge Strategy:**
+```python
+def merge_outputs(generator, reviewer, security, tester):
+    # 1. Apply veto rules
+    if security.has_critical_issues():
+        return {"status": "blocked", "reason": security.findings}
+    
+    # 2. Aggregate findings
+    all_issues = reviewer.issues + security.findings
+    
+    # 3. Combine artifacts
+    return {
+        "code": generator.code,
+        "issues": all_issues,
+        "tests": tester.tests,
+        "confidence": calculate_confidence(all_issues)
+    }
+```
+
+---
+
+### Final Output
+
+Structured, validated response delivered to user:
+```json
+{
+  "status": "success",
+  "code": "import bcrypt\n\ndef hash_password(pw): ...",
+  "review_notes": ["Function is correct", "Good error handling"],
+  "security_findings": [],
+  "tests": ["test_valid_password()", "test_empty_input()"],
+  "confidence": 0.92
+}
+```
+
+---
+
+# Legend & Notation Guide
+
+## Arrow Types
+
+| Symbol | Meaning | Use Case |
+|--------|---------|----------|
+| `──→` | Data flow (solid) | Passing data/artifacts between components |
+| `··→` | Control flow (dotted) | Policy enforcement, validation checks |
+| `⇉` | Parallel execution | Multiple agents running concurrently |
+| `↻` | Feedback loop | Retry, revision, iteration |
+| `←→` | Bi-directional | Two-way communication |
+
+---
+
+## Node Shapes (Mermaid)
+
+| Shape | Meaning |
+|-------|---------|
+| Rectangle `[ ]` | Process/Agent |
+| Diamond `{ }` | Decision point |
+| Rounded `( )` | Input/Output |
+| Subgraph | Logical grouping |
+
+---
+
+## Status Indicators
+
+| Symbol | Meaning |
+|--------|---------|
+| ✅ | Validation passed |
+| ❌ | Validation failed |
+| ⚠️ | Warning/Conflict |
+| 🔄 | Retry/Revision needed |
+| 📦 | Aggregation/Merge |
+
+---
+
+# Example Data Formats
+
+## Message Format: Coordinator → Specialist
+```json
+{
+  "task_id": "gen-001",
+  "agent": "code_generator",
+  "payload": {
+    "task": "Create password hashing function",
+    "language": "python",
+    "constraints": ["use bcrypt", "include error handling"],
+    "context": {
+      "security_level": "strict",
+      "runtime": "python3.11"
+    }
+  }
+}
+```
+
+---
+
+## Message Format: Specialist → Coordinator
+```json
+{
+  "task_id": "gen-001",
+  "agent": "code_generator",
+  "status": "success",
+  "output": {
+    "code": "import bcrypt\n\ndef hash_password(password: str) -> str:\n    salt = bcrypt.gensalt()\n    return bcrypt.hashpw(password.encode(), salt).decode()",
+    "assumptions": ["Uses bcrypt default rounds (12)"],
+    "confidence": 0.90
+  }
+}
+```
+
+---
+
+## Conflict Report Format
+```json
+{
+  "conflict_type": "security_veto",
+  "agents_involved": ["code_reviewer", "security_auditor"],
+  "details": {
+    "reviewer_verdict": "acceptable",
+    "security_verdict": "critical_issue",
+    "issue": "Uses SHA256 instead of bcrypt"
+  },
+  "resolution": "regenerate_code",
+  "authority": "security_auditor"
+}
+```
+
+---
+
+## Merged Output Format
+```json
+{
+  "status": "success",
+  "artifacts": {
+    "code": "string",
+    "review_notes": ["string"],
+    "security_findings": [
+      {
+        "severity": "low | medium | high | critical",
+        "issue": "string",
+        "recommendation": "string"
+      }
+    ],
+    "tests": ["string"]
+  },
+  "metadata": {
+    "agents_invoked": ["code_generator", "code_reviewer", "security_auditor", "test_designer"],
+    "execution_time_ms": 1250,
+    "iterations": 2,
+    "confidence": 0.92
+  }
+}
+```
+
+---
+
+# Usage Guide
+
+## How to Use These Diagrams
+
+### For Documentation
+```markdown
+# System Architecture
+
+Our system follows the Claude architecture pattern:
+
+┌─────────────────────────────────────────────────────────────┐
+│                      🧑 USER LAYER                          │
+│  ┌──────────┐  ┌─────────────┐  ┌──────────────┐            │
+│  │   User   │→→│Intent Parser│→→│  Constraint  │            │
+│  │  Input   │  │             │  │   Manager    │            │
+│  └──────────┘  └─────────────┘  └──────────────┘            │
+│       ↑                                  ↓                  │
+│       │                          ┌──────────────┐           │
+│       │                          │  Feedback    │           │
+│       └──────────────────────────│   Handler    │           │
+│                                  └──────────────┘           │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ (parsed intent)
+                        ↓
+┌─────────────────────────────────────────────────────────────┐
+│                  🧠 CLAUDE ENGINE LAYER                     │
+│  ┌──────────┐     ┌──────────┐     ┌──────────┐             │
+│  │ Planner  │────→│  Router  │────→│ Reasoning│             │
+│  │          │     │          │     │   Core   │             │
+│  └────┬─────┘     └──────────┘     └────┬─────┘             │
+│       │                                 │                   │
+│       │  ┌──────────────────────────────┘                   │
+│       │  │                                                  │
+│       │  ↓                                                  │
+│       │  ┌──────────┐                                       │
+│       │  │Validator │←─────────────────┐                    │
+│       │  └────┬─────┘                  │                    │
+│       │       │                        │                    │
+│       │       ├─→ ✅ approved ─────────┤                   │
+│       │       └─→ ❌ rejected ─────────┘                   │
+│       ↓           (feedback loop)                           │
+└───────┼─────────────────────────────────────────────────────┘
+        │ (policy check)
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│            📜 POLICY/CONSTITUTION LAYER                     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              .claude.md                              │   │
+│  │  • Safety Rules    • Behavioral Constraints          │   │ 
+│  │  • Priority Hierarchy    • Tool Permissions          │   │
+│  └──────────────────────────────────────────────────────┘   │
+│         │                    │                    │         │
+│         ├────────────────────┼────────────────────┤         │
+│         ↓                    ↓                    ↓         │
+└─────────┼────────────────────┼────────────────────┼─────────┘
+          │ (enforce)          │ (enforce)          │ (enforce)
+          ↓                    ↓                    ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    ⚙️ SKILLS LAYER                          |
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │Code Review  │  │Doc Summary  │  │Security     │          │
+│  │   Skill     │  │   Skill     │  │Audit Skill  │  ...     │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
+│         │                │                │                 │
+│         └────────────────┼────────────────┘                 │
+│                          ↓                                  │
+└──────────────────────────┼──────────────────────────────────┘
+                           │ (tool invocation)
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    🔧 TOOLS LAYER                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Web Search  │  │    Code     │  │    File     │          │
+│  │             │  │  Execution  │  │ Operations  │  ...     │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+
+LEGEND:
+  ──→  Data flow (solid)
+  ··→  Control flow (dotted)
+  ←─→  Bi-directional
+  ✅   Validation passed
+  ❌   Validation failed
+
+
+With multi-agent orchestration:
+
+┌──────────────────────────────────────────────────────────────┐
+│                     👤 USER REQUEST                          │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         ↓
+        ┌────────────────────────────────────┐
+        │   🎯 COORDINATOR/PLANNER AGENT     │
+        │   • Decomposes task                │
+        │   • Routes to specialists          │
+        │   • Resolves conflicts             │
+        │   • Merges outputs                 │
+        └────────────┬───────────────────────┘
+                     │
+                     ↓
+        ┌────────────────────────────────────┐
+        │    ⚡ SEQUENTIAL PHASE             │
+        │                                    │
+        │  ┌──────────────────────────────┐  │
+        │  │  🔧 CODE GENERATOR AGENT     |  │
+        │  │  Generates implementation    │  │
+        │  └────────────┬─────────────────┘  │
+        └───────────────┼────────────────────┘
+                        │ (code artifact)
+                        ↓
+        ┌───────────────────────────────────────────────┐
+        │          🔀 PARALLEL PHASE                    │
+        │                                               │
+        │  ┌──────────────┐  ┌──────────────┐           │
+        │  │ 📝 CODE      │  │ 🔒 SECURITY  │           │
+        │  │   REVIEWER   │  │   AUDITOR    │           │
+        │  └──────┬───────┘  └──────┬───────┘           │
+        │         │                  │                  │
+        │         │     ┌────────────┴─────┐            │
+        │         │     │  ✅ TEST         │            │
+        │         │     │    DESIGNER      │            │
+        │         │     └────────┬─────────┘            │
+        │         │              │                      │
+        └─────────┼──────────────┼──────────────────────┘
+                  │              │
+                  └──────┬───────┘
+                         │ (all results collected)
+                         ↓
+                 ┌────────────────┐
+                 │  ⚠️ CONFLICTS? │
+                 └───┬───────┬────┘
+                     │       │
+              YES ───┘       └─── NO
+                 │               │
+                 ↓               ↓
+        ┌─────────────────┐  ┌─────────────────┐
+        │ 🔄 CONFLICT     │  │  📦 MERGE &     │
+        │   RESOLUTION    │  │   AGGREGATE     │
+        │                 │  │                 │
+        │ • Security Veto │  │ • Combine data  │
+        │ • Coordinator   │  │ • Validate      │
+        │   Arbitration   │  │ • Structure     │
+        └────┬────────────┘  └────┬────────────┘
+             │                    │
+             │ (if revision       │
+             │  needed)           │
+             ↓                    │
+        ┌────────┐                │
+        │ REVISE │                │
+        │  CODE  │                │
+        └───┬────┘                │
+            │                     │
+            └─────────────────────┘
+                     │
+                     ↓
+            ┌─────────────────┐
+            │  📤 FINAL       │
+            │    OUTPUT       │
+            └────────┬────────┘
+                     │
+                     ↓
+            ┌─────────────────┐
+            │   👤 USER       │
+            └─────────────────┘
+
+EXECUTION PATTERNS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+→ Sequential (must wait)
+⇉ Parallel (concurrent)
+↻ Iteration/Feedback loop
+
+---
+
+### For Implementation
+```python
+# Use Diagram 1 as reference for layer boundaries
+class ClaudeArchitecture:
+    def __init__(self):
+        self.tools = ToolsLayer()
+        self.policy = PolicyLayer()
+        self.skills = SkillsLayer()
+        self.engine = EngineLayer()
+        self.user = UserLayer()
+
+# Use Diagram 2 as reference for agent coordination
+class MultiAgentOrchestrator:
+    def execute(self, request):
+        # Sequential phase
+        code = self.coordinator.invoke("generator", request)
+        
+        # Parallel phase
+        results = self.coordinator.invoke_parallel([
+            ("reviewer", code),
+            ("security", code),
+            ("tester", code)
+        ])
+        
+        # Conflict resolution & merge
+        return self.coordinator.merge_with_conflicts(results)
+```
+
+---
+
+### For System Design Reviews
+
+Use these diagrams to:
+- ✅ Explain architecture to stakeholders
+- ✅ Identify integration points
+- ✅ Plan scaling strategies
+- ✅ Document failure modes
+- ✅ Design API boundaries
